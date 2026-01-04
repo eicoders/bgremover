@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jar Remover AI - Jar Fanmade</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/coi-serviceworker/0.1.7/coi-serviceworker.min.js"></script>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .header { background: white; width: 100%; text-align: center; padding: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .brand-name { color: var(--primary); font-size: 26px; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+        .container { max-width: 650px; width: 95%; background: white; margin: 20px; padding: 30px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.08); text-align: center; }
+        
+        .status-badge { display: inline-flex; align-items: center; padding: 8px 16px; border-radius: 30px; font-size: 13px; font-weight: 600; margin-bottom: 25px; transition: 0.3s; }
+        
+        .upload-area { border: 2px dashed #cbd5e1; padding: 60px 20px; border-radius: 20px; cursor: pointer; transition: 0.3s; background: #fff; position: relative; }
+        .upload-area.disabled { cursor: not-allowed; opacity: 0.5; background: #f1f5f9; }
+        .upload-area:not(.disabled):hover { border-color: var(--primary); background: #eff6ff; transform: translateY(-2px); }
+
+        /* Progress Bar Section */
+        #progressSection { display: none; margin: 25px 0; }
+        .bar-container { background: #e2e8f0; height: 14px; border-radius: 10px; overflow: hidden; position: relative; }
+        .bar-fill { background: linear-gradient(90deg, #2563eb, #3b82f6); height: 100%; width: 0%; transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); }
+        .stats { display: flex; justify-content: space-between; font-size: 14px; color: #475569; margin-top: 10px; font-weight: 600; }
+
+        #output-img { max-width: 100%; border-radius: 15px; margin-top: 25px; border: 1px solid #e2e8f0; background: url('https://www.transparenttextures.com/patterns/checkerboard.png'); box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+        .btn { background: var(--primary); color: white; border: none; padding: 16px 32px; border-radius: 12px; font-size: 17px; cursor: pointer; font-weight: 700; width: 100%; margin-top: 15px; transition: 0.2s; }
+        .btn:hover { background: #1d4ed8; box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3); }
+        
+        .ad-box { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; padding: 15px; border-radius: 12px; font-size: 11px; margin: 20px 0; letter-spacing: 1px; }
+        .spinner { width: 18px; height: 18px; border: 3px solid rgba(0,0,0,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <p class="brand-name">Jar Remover AI 🚀</p>
+        <div style="font-size: 13px; color: #64748b; font-weight: 500;">A Jar Fanmade Venture</div>
+    </div>
+
+    <div class="container">
+        <div class="ad-box">ADVERTISEMENT SPACE</div>
+
+        <div id="statusBox" class="status-badge" style="background: #fff7ed; color: #9a3412;">
+            <div class="spinner"></div> Connecting to AI Engine...
+        </div>
+
+        <div class="upload-area disabled" id="dropZone">
+            <b id="uploadText" style="font-size: 18px; color: #475569;">Initializing...</b>
+            <input type="file" id="fileInput" accept="image/*" hidden disabled>
+        </div>
+
+        <div id="progressSection">
+            <div class="bar-container"><div id="barFill" class="bar-fill"></div></div>
+            <div class="stats">
+                <span id="pctText">Download: 0%</span>
+                <span id="timeText">Est: --s</span>
+            </div>
+        </div>
+
+        <div id="resultArea" style="display: none;">
+            <img id="output-img" src="" alt="Jar Remover Result">
+            <button id="downloadBtn" class="btn">Download High-Quality PNG</button>
+            <button onclick="location.reload()" class="btn" style="background: #64748b; margin-top: 10px;">Remove Another</button>
+        </div>
+
+        <div class="ad-box">ADVERTISEMENT SPACE</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/bundle.js"></script>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const statusBox = document.getElementById('statusBox');
+        const uploadText = document.getElementById('uploadText');
+        const progressSection = document.getElementById('progressSection');
+        const barFill = document.getElementById('barFill');
+        const pctText = document.getElementById('pctText');
+        const timeText = document.getElementById('timeText');
+        const resultArea = document.getElementById('resultArea');
+        const outputImg = document.getElementById('output-img');
+
+        let processStartTime;
+
+        // Engine Status Monitoring
+        function checkEngine() {
+            if (typeof imglyRemoveBackground !== 'undefined') {
+                statusBox.style.background = "#dcfce7";
+                statusBox.style.color = "#166534";
+                statusBox.innerHTML = "✅ AI Engine Ready";
+                
+                dropZone.classList.remove('disabled');
+                fileInput.disabled = false;
+                uploadText.innerHTML = "📁 Click or Drag Image Here";
+                dropZone.onclick = () => fileInput.click();
+            } else {
+                setTimeout(checkEngine, 1000);
+            }
+        }
+        window.onload = checkEngine;
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Start Processing State
+            dropZone.style.display = 'none';
+            progressSection.style.display = 'block';
+            statusBox.innerHTML = "🚀 Downloading & Processing AI Assets...";
+            statusBox.style.background = "#eff6ff";
+            statusBox.style.color = "#1e40af";
+            processStartTime = Date.now();
+
+            try {
+                const config = {
+                    publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/',
+                    progress: (p, type) => {
+                        const percent = Math.round(p * 100);
+                        barFill.style.width = percent + "%";
+                        
+                        // User-friendly status text
+                        if (percent < 100) {
+                            pctText.innerText = `Fetching Model: ${percent}%`;
+                        } else {
+                            pctText.innerText = `Processing Pixels...`;
+                        }
+
+                        // Remaining Time Prediction
+                        if (p > 0.05) {
+                            const elapsed = (Date.now() - processStartTime) / 1000;
+                            const remaining = Math.max(0, Math.round((elapsed / p) - elapsed));
+                            timeText.innerText = `Baki waqt: ${remaining}s`;
+                        }
+                    }
+                };
+
+                const blob = await imglyRemoveBackground(file, config);
+                const url = URL.createObjectURL(blob);
+                
+                // Show Result
+                progressSection.style.display = 'none';
+                statusBox.innerHTML = "✅ Processing Complete!";
+                statusBox.style.background = "#f0fdf4";
+                statusBox.style.color = "#166534";
+                outputImg.src = url;
+                resultArea.style.display = 'block';
+
+                document.getElementById('downloadBtn').onclick = () => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `JarRemover_${Date.now()}.png`;
+                    a.click();
+                };
+            } catch (err) {
+                console.error(err);
+                alert("Opps! Error: " + err.message + ". Ek baar refresh karke dobara try karein.");
+                location.reload();
+            }
+        });
+    </script>
+</body>
+</html>
